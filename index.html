@@ -3,101 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DAYA_OS_V5</title>
+    <title>DAYA_OS</title>
     <style>
-        * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-
-        /* THE BOOT SCREEN (Full Black with Run Button) */
-        #boot-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999; /* Stays on top of everything */
-            transition: opacity 1s ease;
-        }
-
-        #run-btn {
-            background: transparent;
-            color: #0f0;
-            border: 2px solid #0f0;
-            padding: 20px 50px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: 0 0 15px #0f0;
-            letter-spacing: 5px;
-        }
-
-        #run-btn:active {
-            background: #0f0;
-            color: #000;
-        }
-
-        /* THE VIDEO CONTAINER */
-        #video-bg {
+        
+        /* The Video System - Fullscreen */
+        #video-system {
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            object-fit: cover; /* Makes video fill screen like a system */
+            object-fit: cover;
             z-index: 1;
-            display: none; /* Hidden until button is clicked */
         }
 
-        /* OVERLAY TEXT (Optional OS feel) */
+        /* The OS Text Layer */
         #os-content {
             position: relative;
             z-index: 2;
             color: #0f0;
             padding: 20px;
-            pointer-events: none;
-            display: none;
+            background: rgba(0,0,0,0.3); /* Slight dim to see text better */
+            height: 100vh;
         }
     </style>
 </head>
 <body>
 
-    <div id="boot-screen">
-        <button id="run-btn" onclick="startSystem()">Run</button>
-    </div>
-
-    <video id="video-bg" playsinline>
+    <video id="video-system" autoplay muted loop playsinline>
         <source src="intro.mp4" type="video/mp4">
     </video>
 
     <div id="os-content">
         <p>> INITIALIZING DAYA_OS...</p>
         <p>> LOADING KERNEL...</p>
+        <p>> SYSTEM READY.</p>
     </div>
 
     <script>
-        function startSystem() {
-            const bootScreen = document.getElementById('boot-screen');
-            const video = document.getElementById('video-bg');
-            const content = document.getElementById('os-content');
-
-            // 1. Hide the boot screen
-            bootScreen.style.opacity = '0';
-            setTimeout(() => {
-                bootScreen.style.display = 'none';
-            }, 1000);
-
-            // 2. Show and Play Video
-            video.style.display = 'block';
-            video.play().catch(error => {
-                console.log("Video play failed:", error);
-                // If it fails, we try muted play (browser requirement)
-                video.muted = true;
-                video.play();
+        // Force play if autoplay is blocked
+        window.onload = function() {
+            var v = document.getElementById('video-system');
+            v.play().catch(function(error) {
+                console.log("Browser blocked autoplay, trying again...");
             });
-
-            // 3. Show OS Text
-            content.style.display = 'block';
-        }
+        };
     </script>
 </body>
 </html>
