@@ -3,46 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Screen Remote</title>
+  <title>Mobile Remote Control</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     body { font-family: sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 15px; }
     .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin: 10px auto; max-width: 400px; }
     input { padding: 10px; font-size: 16px; width: 60%; }
-    button { padding: 10px 18px; font-size: 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 6px; }
+    button { padding: 12px 18px; font-size: 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 6px; }
     video { width: 100%; border-radius: 8px; background: #000; margin-top: 10px; }
     .hidden { display: none; }
-    .status { color: #00ffcc; margin-top: 10px; }
+    .status { color: #00ffcc; margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h2>📱 Live Screen Remote Control</h2>
+  <h2>📱 Remote Control & Stream</h2>
 
   <div id="loginSection" class="card">
     <input type="number" id="roomInput" value="100">
     <br><br>
-    <button onclick="startMode('controller')">Phone 1 (View & Control)</button>
-    <button onclick="startMode('target')">Phone 2 (Share Screen)</button>
+    <button onclick="startMode('controller')">Phone 1 (Controller)</button>
+    <button onclick="startMode('target')">Phone 2 (Target Device)</button>
   </div>
 
-  <!-- Phone 1 Screen -->
+  <!-- Phone 1 UI -->
   <div id="controllerUI" class="card hidden">
-    <h3>[ Phone 1 - Remote Screen ]</h3>
-    <!-- Phone 2 ನ ಸ್ಕ್ರೀನ್ ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ -->
+    <h3>[ Phone 1 - Controller ]</h3>
     <video id="remoteVideo" autoplay playsinline></video>
     <div style="margin-top:10px;">
-      <button onclick="sendCmd('HOME')">🏠 Home</button>
-      <button onclick="sendCmd('BACK')">◀️ Back</button>
+      <button onclick="sendCmd('HOME_CLICK')">🏠 Home</button>
+      <button onclick="sendCmd('SWIPE_UP')">⬆️ Swipe Up</button>
     </div>
     <div class="status" id="cLog">Connecting to stream...</div>
   </div>
 
-  <!-- Phone 2 Screen -->
+  <!-- Phone 2 UI -->
   <div id="targetUI" class="card hidden">
     <h3>[ Phone 2 - Target ]</h3>
-    <button onclick="startScreenShare()" style="background:#28a745;">▶️ Start Screen Share</button>
-    <div class="status" id="tLog">Click 'Start Screen Share' to send screen</div>
+    <button onclick="startCameraShare()" style="background:#28a745;">▶️ Start Live Stream</button>
+    <video id="localVideo" autoplay playsinline muted style="height:150px; width:auto;"></video>
+    <div class="status" id="tLog">Click 'Start Live Stream'</div>
   </div>
 
   <script>
@@ -63,12 +63,13 @@
       }
     }
 
-    // Phone 2: Screen Share Start ಮಾಡುವುದು
-    async function startScreenShare() {
+    // Phone 2: Mobile Camera Stream (Android Browser Compatible)
+    async function startCameraShare() {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        peerConn = new RTCPeerConnection(config);
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        document.getElementById('localVideo').srcObject = stream;
         
+        peerConn = new RTCPeerConnection(config);
         stream.getTracks().forEach(track => peerConn.addTrack(track, stream));
 
         peerConn.onicecandidate = e => {
@@ -79,19 +80,18 @@
         await peerConn.setLocalDescription(offer);
         socket.emit('signal', { room, offer });
 
-        document.getElementById('tLog').innerText = "🔴 Screen Sharing Active!";
+        document.getElementById('tLog').innerText = "🔴 Live Streaming Active!";
       } catch (err) {
-        alert("Screen sharing error: " + err);
+        alert("Camera permission error: " + err);
       }
     }
 
-    // WebRTC Signaling handle ಮಾಡುವುದು
     socket.on('signal', async (data) => {
       if (data.offer) {
         peerConn = new RTCPeerConnection(config);
         peerConn.ontrack = e => {
           document.getElementById('remoteVideo').srcObject = e.streams[0];
-          document.getElementById('cLog').innerText = "🟢 Screen Connected!";
+          document.getElementById('cLog').innerText = "🟢 Video Connected!";
         };
         peerConn.onicecandidate = e => {
           if (e.candidate) socket.emit('signal', { room, candidate: e.candidate });
@@ -114,7 +114,7 @@
 
     socket.on('execute-command', data => {
       if(document.getElementById('tLog')) {
-        document.getElementById('tLog').innerText = "Cmd Executed: " + data.action;
+        document.getElementById('tLog').innerText = "⚡ EXECUTED: " + data.action;
       }
     });
   </script>
