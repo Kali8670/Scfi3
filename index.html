@@ -3,7 +3,8 @@
 <head>
   <title>Remote Control Center</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="/socket.io/socket.io.js"></script>
+  <!-- CDN Link ಗೆ ಬದಲಾಯಿಸಲಾಗಿದೆ -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #121212; color: white; }
     button { padding: 15px 25px; margin: 10px; font-size: 16px; border: none; border-radius: 8px; background: #007bff; color: white; cursor: pointer; }
@@ -27,14 +28,14 @@
   </div>
 
   <script>
+    // Server URL ಅನ್ನು ಸ್ಪಷ್ಟವಾಗಿ ನೀಡಲಾಗಿದೆ
     const socket = io();
 
-    // Command ಕಳುಹಿಸಲು
     function sendCommand(cmd) {
+      alert("Command sent: " + cmd); // Check ಮಾಡಲು alert ಹಾಕಲಾಗಿದೆ
       socket.emit('send-command', { action: cmd });
     }
 
-    // Command ಸ್ವೀಕರಿಸಲು
     socket.on('execute-command', (data) => {
       document.getElementById('log').innerText = "EXECUTED: " + data.action;
     });
