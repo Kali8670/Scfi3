@@ -1,82 +1,71 @@
 <!DOCTYPE html>
-<html lang="kn">
+<html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Remote Connect App</title>
-  <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIlJlbW90ZSBDb250cm9sIiwKICAic2hvcnRfbmFtZSI6ICJSZW1vdGUiLAogICJzdGFydF91cmwiOiAiLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiIzEyMTIxMiIsCiAgInRoZW1lX2NvbG9yIjogIiMwMDdiZmYiCn0=">
+  <title>Remote Control</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: sans-serif; background: #121212; color: white; margin: 0; padding: 20px; text-align: center; }
-    .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-    input { width: 80%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #333; font-size: 16px; text-align: center; }
-    button { padding: 12px 24px; font-size: 16px; border: none; border-radius: 8px; background: #007bff; color: white; font-weight: bold; margin: 5px; }
-    .status { color: #00ffcc; font-size: 18px; margin-top: 15px; word-break: break-all; }
+    body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+    .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px 0; }
+    input { padding: 10px; font-size: 16px; width: 70%; margin: 10px 0; }
+    button { padding: 12px 20px; font-size: 16px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 6px; }
+    .status { color: #00ffcc; font-size: 20px; margin-top: 15px; font-weight: bold; }
     .hidden { display: none; }
   </style>
 </head>
 <body>
 
-  <h2>📱 Remote App Controller</h2>
+  <h2>📱 Remote Controller App</h2>
 
-  <!-- Step 1: Login / Pairing Screen -->
   <div id="loginSection" class="card">
-    <h3>ಸಂಪರ್ಕ ಸಾಧಿಸಿ (Pair Device)</h3>
-    <input type="text" id="roomInput" placeholder="Enter Room ID (e.g. 1234)">
+    <h3>Enter Room ID (e.g. 100)</h3>
+    <input type="number" id="roomInput" value="100">
     <br>
-    <button onclick="joinRoom('controller')">📱 Phone 1: Watch/Control</button>
-    <button onclick="joinRoom('target')">📲 Phone 2: Screen Device</button>
+    <button onclick="joinRoom('controller')">Phone 1 (Controller)</button>
+    <button onclick="joinRoom('target')">Phone 2 (Target Device)</button>
   </div>
 
-  <!-- Step 2A: Phone 1 (Controller UI) -->
   <div id="controllerUI" class="card hidden">
-    <h3>[ Phone 1 - Viewing & Controlling ]</h3>
-    <p>Room ID: <b id="displayRoom1"></b></p>
-    <button onclick="sendAction('HOME')">🏠 Home</button>
+    <h3>[ Phone 1 - Controller ]</h3>
+    <button onclick="sendAction('HOME_CLICK')">🏠 Home</button>
     <button onclick="sendAction('SWIPE_UP')">⬆️ Swipe Up</button>
-    <button onclick="sendAction('BACK')">◀️ Back</button>
-    <div class="status" id="controllerLog">ಸಂಪರ್ಕಗೊಂಡಿದೆ... ಕಮಾಂಡ್ ಕಳುಹಿಸಲು ಬಟನ್ ಒತ್ತಿ</div>
+    <div class="status" id="controllerLog">Ready to send!</div>
   </div>
 
-  <!-- Step 2B: Phone 2 (Target Device UI) -->
   <div id="targetUI" class="card hidden">
-    <h3>[ Phone 2 - Target Mobile Screen ]</h3>
-    <p>Room ID: <b id="displayRoom2"></b></p>
-    <div class="status" id="targetLog">Phone 1 ರಿಂದ ಕಮಾಂಡ್‌ಗಾಗಿ ಕಾಯಲಾಗುತ್ತಿದೆ...</div>
+    <h3>[ Phone 2 - Target ]</h3>
+    <div class="status" id="targetLog">Waiting for commands...</div>
   </div>
 
   <script>
     const socket = io();
     let currentRoom = "";
-    let role = "";
+    let myRole = "";
 
-    function joinRoom(selectedRole) {
-      const room = document.getElementById('roomInput').value.trim();
-      if (!room) { alert("ದಯವಿಟ್ಟು Room ID ಹಾಕಿ!"); return; }
+    function joinRoom(role) {
+      currentRoom = document.getElementById('roomInput').value;
+      myRole = role;
+      if (!currentRoom) { alert("Enter Room ID!"); return; }
 
-      currentRoom = room;
-      role = selectedRole;
-      socket.emit('join-room', { room, role });
+      socket.emit('join-room', { room: currentRoom, role: role });
 
       document.getElementById('loginSection').classList.add('hidden');
       if (role === 'controller') {
         document.getElementById('controllerUI').classList.remove('hidden');
-        document.getElementById('displayRoom1').innerText = room;
       } else {
         document.getElementById('targetUI').classList.remove('hidden');
-        document.getElementById('displayRoom2').innerText = room;
       }
     }
 
     function sendAction(actionName) {
       socket.emit('send-command', { room: currentRoom, action: actionName });
-      document.getElementById('controllerLog').innerText = "ಕಳುಹಿಸಲಾಗಿದೆ: " + actionName;
+      document.getElementById('controllerLog').innerText = "Sent: " + actionName;
     }
 
     socket.on('execute-command', (data) => {
-      if (role === 'target') {
-        document.getElementById('targetLog').innerText = "⚡ EXECUTED ACTION: " + data.action;
+      if (myRole === 'target') {
+        document.getElementById('targetLog').innerText = "⚡ RECEIVED: " + data.action;
       }
     });
   </script>
