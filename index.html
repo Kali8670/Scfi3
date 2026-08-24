@@ -3,21 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mobile Remote Stream</title>
+  <title>Mobile Remote View</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     body { font-family: sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 15px; }
     .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin: 10px auto; max-width: 400px; }
     input { padding: 10px; font-size: 16px; width: 60%; }
     button { padding: 12px 18px; font-size: 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 6px; }
-    video { width: 100%; border-radius: 8px; background: #000; margin-top: 10px; }
+    img { width: 100%; border-radius: 8px; background: #000; margin-top: 10px; min-height: 200px; }
+    video { display: none; }
     .hidden { display: none; }
     .status { color: #00ffcc; margin-top: 10px; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h2>📱 Remote Live Stream</h2>
+  <h2>📱 Real-Time Remote View</h2>
 
   <div id="loginSection" class="card">
     <input type="number" id="roomInput" value="100">
@@ -28,30 +29,29 @@
 
   <!-- Phone 1 UI -->
   <div id="controllerUI" class="card hidden">
-    <h3>[ Phone 1 - Remote Screen ]</h3>
-    <video id="remoteVideo" autoplay playsinline style="min-height:200px;"></video>
+    <h3>[ Phone 1 - Remote View ]</h3>
+    <!-- Phone 2 Camera Image Stream -->
+    <img id="remoteScreen" alt="Waiting for stream...">
     <div style="margin-top:10px;">
       <button onclick="sendCmd('HOME_CLICK')">🏠 Home</button>
       <button onclick="sendCmd('SWIPE_UP')">⬆️ Swipe Up</button>
     </div>
-    <div class="status" id="cLog"> Connecting... Phone 2 ನಲ್ಲಿ Start ಒತ್ತಿ</div>
+    <div class="status" id="cLog">Connecting to target...</div>
   </div>
 
   <!-- Phone 2 UI -->
   <div id="targetUI" class="card hidden">
     <h3>[ Phone 2 - Target ]</h3>
-    <button onclick="startCameraShare()" style="background:#28a745;">▶️ Start Live Stream</button>
-    <video id="localVideo" autoplay playsinline muted style="height:120px; width:auto;"></video>
-    <div class="status" id="tLog">Click 'Start Live Stream'</div>
+    <button onclick="startStream()" style="background:#28a745;">▶️ Start Camera Stream</button>
+    <video id="hiddenVideo" autoplay playsinline muted></video>
+    <canvas id="hiddenCanvas" style="display:none;"></canvas>
+    <div class="status" id="tLog">Click 'Start Camera Stream'</div>
   </div>
 
   <script>
     const socket = io();
     let room = "";
     let myRole = "";
-    let localStream;
-    let peerConn;
-    const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
     function startMode(role) {
       room = document.getElementById('roomInput').value;
@@ -66,62 +66,39 @@
       }
     }
 
-    // Phone 2 Camera Access
-    async function startCameraShare() {
+    // Phone 2: Canvas Frame Capture (Direct Image Stream)
+    async function startStream() {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        document.getElementById('localVideo').srcObject = localStream;
-        document.getElementById('tLog').innerText = "🔴 Camera Active! Waiting for Phone 1...";
+        const video = document.getElementById('hiddenVideo');
+        const canvas = document.getElementById('hiddenCanvas');
+        const ctx = canvas.getContext('2d');
 
-        // Ready signal ಕಳುಹಿಸುವುದು
-        socket.emit('ready-signal', { room });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+        video.srcObject = stream;
+
+        document.getElementById('tLog').innerText = "🔴 Live Streaming Frame-by-Frame!";
+
+        // ಸೆಕೆಂಡಿಗೆ 10 ಫ್ರೇಮ್‌ಗಳನ್ನು ಫೋನ್ 1 ಗೆ ರವಾನಿಸುವುದು
+        setInterval(() => {
+          canvas.width = 320;
+          canvas.height = 240;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = canvas.toDataURL('image/jpeg', 0.5); // Image Frame
+          socket.emit('frame-stream', { room, image: imageData });
+        }, 100); 
+
       } catch (err) {
         alert("Camera Error: " + err);
       }
     }
 
-    // Phone 1 Controller signal ಸ್ವೀಕರಿಸಿ WebRTC Offer ರೆಡಿ ಮಾಡುವುದು
-    socket.on('ready-signal', async () => {
+    // Phone 1: Image 받아 ಲೈವ್ ಆಗಿ ಪ್ರದರ್ಶಿಸುವುದು
+    socket.on('frame-stream', data => {
       if (myRole === 'controller') {
-        createPeerConnection();
-        const offer = await peerConn.createOffer();
-        await peerConn.setLocalDescription(offer);
-        socket.emit('signal', { room, offer });
+        document.getElementById('remoteScreen').src = data.image;
+        document.getElementById('cLog').innerText = "🟢 LIVE SCREEN CONNECTED!";
       }
     });
-
-    socket.on('signal', async (data) => {
-      if (data.offer && myRole === 'target') {
-        createPeerConnection();
-        await peerConn.setRemoteDescription(new RTCSessionDescription(data.offer));
-        const answer = await peerConn.createAnswer();
-        await peerConn.setLocalDescription(answer);
-        socket.emit('signal', { room, answer });
-      } else if (data.answer && myRole === 'controller') {
-        await peerConn.setRemoteDescription(new RTCSessionDescription(data.answer));
-      } else if (data.candidate && peerConn) {
-        await peerConn.addIceCandidate(new RTCIceCandidate(data.candidate));
-      }
-    });
-
-    function createPeerConnection() {
-      peerConn = new RTCPeerConnection(config);
-
-      if (myRole === 'target' && localStream) {
-        localStream.getTracks().forEach(track => peerConn.addTrack(track, localStream));
-      }
-
-      if (myRole === 'controller') {
-        peerConn.ontrack = e => {
-          document.getElementById('remoteVideo').srcObject = e.streams[0];
-          document.getElementById('cLog').innerText = "🟢 LIVE VIDEO CONNECTED!";
-        };
-      }
-
-      peerConn.onicecandidate = e => {
-        if (e.candidate) socket.emit('signal', { room, candidate: e.candidate });
-      };
-    }
 
     function sendCmd(act) {
       socket.emit('send-command', { room, action: act });
