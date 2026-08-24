@@ -1,52 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DAYA_OS</title>
-    <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-        
-        /* The Video System - Fullscreen */
-        #video-system {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            object-fit: cover;
-            z-index: 1;
-        }
-
-        /* The OS Text Layer */
-        #os-content {
-            position: relative;
-            z-index: 2;
-            color: #0f0;
-            padding: 20px;
-            background: rgba(0,0,0,0.3); /* Slight dim to see text better */
-            height: 100vh;
-        }
-    </style>
-</head>
-<body>
-
-    <video id="video-system" autoplay muted loop playsinline>
-        <source src="intro.mp4" type="video/mp4">
-    </video>
-
-    <div id="os-content">
-        <p>> INITIALIZING DAYA_OS...</p>
-        <p>> LOADING KERNEL...</p>
-        <p>> SYSTEM READY.</p>
-    </div>
-
-    <script>
-        // Force play if autoplay is blocked
-        window.onload = function() {
-            var v = document.getElementById('video-system');
-            v.play().catch(function(error) {
-                console.log("Browser blocked autoplay, trying again...");
-            });
-        };
-    </script>
-</body>
-</html>
+{
+  "name": "remote-control-demo",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}
