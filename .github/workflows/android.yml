@@ -8,19 +8,34 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew assembleDebug
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: app-debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Cordova
+        run: npm install -g cordova
+
+      - name: Create and Build Android App
+        run: |
+          cordova create buildApp com.remote.app RemoteApp
+          cd buildApp
+          cordova platform add android
+          rm -rf www/*
+          cp ../index.html www/index.html
+          cordova build android --no-telemetry
+
+      - name: Save APK File
+        uses: actions/upload-artifact@v4
+        with:
+          name: TargetMobileApp
+          path: buildApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
