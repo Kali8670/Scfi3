@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mobile Remote Control</title>
+  <title>Mobile Remote Stream</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
     body { font-family: sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 15px; }
@@ -17,7 +17,7 @@
 </head>
 <body>
 
-  <h2>📱 Remote Control & Stream</h2>
+  <h2>📱 Remote Live Stream</h2>
 
   <div id="loginSection" class="card">
     <input type="number" id="roomInput" value="100">
@@ -28,31 +28,34 @@
 
   <!-- Phone 1 UI -->
   <div id="controllerUI" class="card hidden">
-    <h3>[ Phone 1 - Controller ]</h3>
-    <video id="remoteVideo" autoplay playsinline></video>
+    <h3>[ Phone 1 - Remote Screen ]</h3>
+    <video id="remoteVideo" autoplay playsinline style="min-height:200px;"></video>
     <div style="margin-top:10px;">
       <button onclick="sendCmd('HOME_CLICK')">🏠 Home</button>
       <button onclick="sendCmd('SWIPE_UP')">⬆️ Swipe Up</button>
     </div>
-    <div class="status" id="cLog">Connecting to stream...</div>
+    <div class="status" id="cLog"> Connecting... Phone 2 ನಲ್ಲಿ Start ಒತ್ತಿ</div>
   </div>
 
   <!-- Phone 2 UI -->
   <div id="targetUI" class="card hidden">
     <h3>[ Phone 2 - Target ]</h3>
     <button onclick="startCameraShare()" style="background:#28a745;">▶️ Start Live Stream</button>
-    <video id="localVideo" autoplay playsinline muted style="height:150px; width:auto;"></video>
+    <video id="localVideo" autoplay playsinline muted style="height:120px; width:auto;"></video>
     <div class="status" id="tLog">Click 'Start Live Stream'</div>
   </div>
 
   <script>
     const socket = io();
     let room = "";
+    let myRole = "";
+    let localStream;
     let peerConn;
     const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
     function startMode(role) {
       room = document.getElementById('roomInput').value;
+      myRole = role;
       socket.emit('join-room', { room, role });
       document.getElementById('loginSection').classList.add('hidden');
 
@@ -63,58 +66,71 @@
       }
     }
 
-    // Phone 2: Mobile Camera Stream (Android Browser Compatible)
+    // Phone 2 Camera Access
     async function startCameraShare() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
-        document.getElementById('localVideo').srcObject = stream;
-        
-        peerConn = new RTCPeerConnection(config);
-        stream.getTracks().forEach(track => peerConn.addTrack(track, stream));
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        document.getElementById('localVideo').srcObject = localStream;
+        document.getElementById('tLog').innerText = "🔴 Camera Active! Waiting for Phone 1...";
 
-        peerConn.onicecandidate = e => {
-          if (e.candidate) socket.emit('signal', { room, candidate: e.candidate });
-        };
-
-        const offer = await peerConn.createOffer();
-        await peerConn.setLocalDescription(offer);
-        socket.emit('signal', { room, offer });
-
-        document.getElementById('tLog').innerText = "🔴 Live Streaming Active!";
+        // Ready signal ಕಳುಹಿಸುವುದು
+        socket.emit('ready-signal', { room });
       } catch (err) {
-        alert("Camera permission error: " + err);
+        alert("Camera Error: " + err);
       }
     }
 
+    // Phone 1 Controller signal ಸ್ವೀಕರಿಸಿ WebRTC Offer ರೆಡಿ ಮಾಡುವುದು
+    socket.on('ready-signal', async () => {
+      if (myRole === 'controller') {
+        createPeerConnection();
+        const offer = await peerConn.createOffer();
+        await peerConn.setLocalDescription(offer);
+        socket.emit('signal', { room, offer });
+      }
+    });
+
     socket.on('signal', async (data) => {
-      if (data.offer) {
-        peerConn = new RTCPeerConnection(config);
-        peerConn.ontrack = e => {
-          document.getElementById('remoteVideo').srcObject = e.streams[0];
-          document.getElementById('cLog').innerText = "🟢 Video Connected!";
-        };
-        peerConn.onicecandidate = e => {
-          if (e.candidate) socket.emit('signal', { room, candidate: e.candidate });
-        };
+      if (data.offer && myRole === 'target') {
+        createPeerConnection();
         await peerConn.setRemoteDescription(new RTCSessionDescription(data.offer));
         const answer = await peerConn.createAnswer();
         await peerConn.setLocalDescription(answer);
         socket.emit('signal', { room, answer });
-      } else if (data.answer) {
+      } else if (data.answer && myRole === 'controller') {
         await peerConn.setRemoteDescription(new RTCSessionDescription(data.answer));
-      } else if (data.candidate) {
+      } else if (data.candidate && peerConn) {
         await peerConn.addIceCandidate(new RTCIceCandidate(data.candidate));
       }
     });
 
+    function createPeerConnection() {
+      peerConn = new RTCPeerConnection(config);
+
+      if (myRole === 'target' && localStream) {
+        localStream.getTracks().forEach(track => peerConn.addTrack(track, localStream));
+      }
+
+      if (myRole === 'controller') {
+        peerConn.ontrack = e => {
+          document.getElementById('remoteVideo').srcObject = e.streams[0];
+          document.getElementById('cLog').innerText = "🟢 LIVE VIDEO CONNECTED!";
+        };
+      }
+
+      peerConn.onicecandidate = e => {
+        if (e.candidate) socket.emit('signal', { room, candidate: e.candidate });
+      };
+    }
+
     function sendCmd(act) {
       socket.emit('send-command', { room, action: act });
-      document.getElementById('cLog').innerText = "Cmd Sent: " + act;
+      document.getElementById('cLog').innerText = "Sent: " + act;
     }
 
     socket.on('execute-command', data => {
-      if(document.getElementById('tLog')) {
-        document.getElementById('tLog').innerText = "⚡ EXECUTED: " + data.action;
+      if (myRole === 'target') {
+        document.getElementById('tLog').innerText = "⚡ RECEIVED: " + data.action;
       }
     });
   </script>
