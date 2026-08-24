@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Native Android APK
 
 on:
   push:
@@ -8,7 +8,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Java JDK
@@ -17,25 +17,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Install Cordova
-        run: npm install -g cordova
+      - name: Build Debug APK
+        run: gradle assembleDebug
 
-      - name: Create and Build Android App
-        run: |
-          cordova create buildApp com.remote.app RemoteApp
-          cd buildApp
-          cordova platform add android
-          rm -rf www/*
-          cp ../index.html www/index.html
-          cordova build android --no-telemetry
-
-      - name: Save APK File
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TargetMobileApp
-          path: buildApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          name: RemoteAgent-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
