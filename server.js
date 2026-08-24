@@ -9,20 +9,15 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  // ಫೋನ್-A ಯಿಂದ ಕಮಾಂಡ್ ಬಂದಾಗ ಫೋನ್-B ಗೆ ಕಳುಹಿಸುವುದು
-  socket.on('send-command', (data) => {
-    console.log('Command received:', data);
-    io.emit('execute-command', data);
+  socket.on('join-room', ({ room, role }) => {
+    socket.join(room);
+    console.log(`User joined room ${room} as ${role}`);
   });
 
-  socket.on('disconnect', () => {
-    console.log('User disconnected');
+  socket.on('send-command', ({ room, action }) => {
+    io.to(room).emit('execute-command', { action });
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
