@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Remote Control Center</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #121212; color: white; }
+    button { padding: 15px 25px; margin: 10px; font-size: 16px; border: none; border-radius: 8px; background: #007bff; color: white; cursor: pointer; }
+    #log { margin-top: 20px; font-weight: bold; font-size: 18px; color: #00ffcc; }
+  </style>
+</head>
+<body>
+  <h2>Remote Control Center</h2>
+  
+  <div>
+    <h3>[Phone A - Controller]</h3>
+    <button onclick="sendCommand('HOME_CLICK')">Press Home</button>
+    <button onclick="sendCommand('SWIPE_UP')">Swipe Up</button>
+  </div>
+
+  <hr>
+
+  <div>
+    <h3>[Phone B - Target Device Log]</h3>
+    <div id="log">Waiting for commands...</div>
+  </div>
+
+  <script>
+    const socket = io();
+
+    // Command ಕಳುಹಿಸಲು
+    function sendCommand(cmd) {
+      socket.emit('send-command', { action: cmd });
+    }
+
+    // Command ಸ್ವೀಕರಿಸಲು
+    socket.on('execute-command', (data) => {
+      document.getElementById('log').innerText = "EXECUTED: " + data.action;
+    });
+  </script>
+</body>
+</html>
