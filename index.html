@@ -3,54 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Remote Control</title>
+  <title>Live Screen Remote</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <style>
-    body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
-    .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px 0; }
-    input { padding: 10px; font-size: 16px; width: 70%; margin: 10px 0; }
-    button { padding: 12px 20px; font-size: 16px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 6px; }
-    .status { color: #00ffcc; font-size: 20px; margin-top: 15px; font-weight: bold; }
+    body { font-family: sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding: 15px; }
+    .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin: 10px auto; max-width: 400px; }
+    input { padding: 10px; font-size: 16px; width: 60%; }
+    button { padding: 10px 18px; font-size: 15px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 6px; }
+    video { width: 100%; border-radius: 8px; background: #000; margin-top: 10px; }
     .hidden { display: none; }
+    .status { color: #00ffcc; margin-top: 10px; }
   </style>
 </head>
 <body>
 
-  <h2>📱 Remote Controller App</h2>
+  <h2>📱 Live Screen Remote Control</h2>
 
   <div id="loginSection" class="card">
-    <h3>Enter Room ID (e.g. 100)</h3>
     <input type="number" id="roomInput" value="100">
-    <br>
-    <button onclick="joinRoom('controller')">Phone 1 (Controller)</button>
-    <button onclick="joinRoom('target')">Phone 2 (Target Device)</button>
+    <br><br>
+    <button onclick="startMode('controller')">Phone 1 (View & Control)</button>
+    <button onclick="startMode('target')">Phone 2 (Share Screen)</button>
   </div>
 
+  <!-- Phone 1 Screen -->
   <div id="controllerUI" class="card hidden">
-    <h3>[ Phone 1 - Controller ]</h3>
-    <button onclick="sendAction('HOME_CLICK')">🏠 Home</button>
-    <button onclick="sendAction('SWIPE_UP')">⬆️ Swipe Up</button>
-    <div class="status" id="controllerLog">Ready to send!</div>
+    <h3>[ Phone 1 - Remote Screen ]</h3>
+    <!-- Phone 2 ನ ಸ್ಕ್ರೀನ್ ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ -->
+    <video id="remoteVideo" autoplay playsinline></video>
+    <div style="margin-top:10px;">
+      <button onclick="sendCmd('HOME')">🏠 Home</button>
+      <button onclick="sendCmd('BACK')">◀️ Back</button>
+    </div>
+    <div class="status" id="cLog">Connecting to stream...</div>
   </div>
 
+  <!-- Phone 2 Screen -->
   <div id="targetUI" class="card hidden">
     <h3>[ Phone 2 - Target ]</h3>
-    <div class="status" id="targetLog">Waiting for commands...</div>
+    <button onclick="startScreenShare()" style="background:#28a745;">▶️ Start Screen Share</button>
+    <div class="status" id="tLog">Click 'Start Screen Share' to send screen</div>
   </div>
 
   <script>
     const socket = io();
-    let currentRoom = "";
-    let myRole = "";
+    let room = "";
+    let peerConn;
+    const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-    function joinRoom(role) {
-      currentRoom = document.getElementById('roomInput').value;
-      myRole = role;
-      if (!currentRoom) { alert("Enter Room ID!"); return; }
-
-      socket.emit('join-room', { room: currentRoom, role: role });
-
+    function startMode(role) {
+      room = document.getElementById('roomInput').value;
+      socket.emit('join-room', { room, role });
       document.getElementById('loginSection').classList.add('hidden');
+
       if (role === 'controller') {
         document.getElementById('controllerUI').classList.remove('hidden');
       } else {
@@ -58,14 +63,58 @@
       }
     }
 
-    function sendAction(actionName) {
-      socket.emit('send-command', { room: currentRoom, action: actionName });
-      document.getElementById('controllerLog').innerText = "Sent: " + actionName;
+    // Phone 2: Screen Share Start ಮಾಡುವುದು
+    async function startScreenShare() {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        peerConn = new RTCPeerConnection(config);
+        
+        stream.getTracks().forEach(track => peerConn.addTrack(track, stream));
+
+        peerConn.onicecandidate = e => {
+          if (e.candidate) socket.emit('signal', { room, candidate: e.candidate });
+        };
+
+        const offer = await peerConn.createOffer();
+        await peerConn.setLocalDescription(offer);
+        socket.emit('signal', { room, offer });
+
+        document.getElementById('tLog').innerText = "🔴 Screen Sharing Active!";
+      } catch (err) {
+        alert("Screen sharing error: " + err);
+      }
     }
 
-    socket.on('execute-command', (data) => {
-      if (myRole === 'target') {
-        document.getElementById('targetLog').innerText = "⚡ RECEIVED: " + data.action;
+    // WebRTC Signaling handle ಮಾಡುವುದು
+    socket.on('signal', async (data) => {
+      if (data.offer) {
+        peerConn = new RTCPeerConnection(config);
+        peerConn.ontrack = e => {
+          document.getElementById('remoteVideo').srcObject = e.streams[0];
+          document.getElementById('cLog').innerText = "🟢 Screen Connected!";
+        };
+        peerConn.onicecandidate = e => {
+          if (e.candidate) socket.emit('signal', { room, candidate: e.candidate });
+        };
+        await peerConn.setRemoteDescription(new RTCSessionDescription(data.offer));
+        const answer = await peerConn.createAnswer();
+        await peerConn.setLocalDescription(answer);
+        socket.emit('signal', { room, answer });
+      } else if (data.answer) {
+        await peerConn.setRemoteDescription(new RTCSessionDescription(data.answer));
+      } else if (data.candidate) {
+        await peerConn.addIceCandidate(new RTCIceCandidate(data.candidate));
+      }
+    });
+
+    function sendCmd(act) {
+      socket.emit('send-command', { room, action: act });
+      document.getElementById('cLog').innerText = "Cmd Sent: " + act;
+    }
+
+    socket.on('execute-command', data => {
+      if(document.getElementById('tLog')) {
+        document.getElementById('tLog').innerText = "Cmd Executed: " + data.action;
       }
     });
   </script>
